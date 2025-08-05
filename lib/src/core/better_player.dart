@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:better_player/better_player.dart';
 import 'package:better_player/src/configuration/better_player_controller_event.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
@@ -60,6 +61,28 @@ class _BetterPlayerState extends State<BetterPlayer>
   ///Subscription for controller events
   StreamSubscription? _controllerEventSubscription;
 
+  ///Store the original system UI overlay style before entering fullscreen
+  SystemUiOverlayStyle? _originalSystemUiOverlayStyle;
+
+  /// Helper method to determine the appropriate SystemUiOverlayStyle based on theme
+  SystemUiOverlayStyle _getSystemUiOverlayStyleFromTheme(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Check if there's an explicit style set in the app bar theme
+    if (theme.appBarTheme.systemOverlayStyle != null) {
+      return theme.appBarTheme.systemOverlayStyle!;
+    }
+
+    // Fallback to determining from theme brightness
+    if (theme.brightness == Brightness.dark) {
+      return SystemUiOverlayStyle
+          .light; // Light status bar content for dark theme
+    } else {
+      return SystemUiOverlayStyle
+          .dark; // Dark status bar content for light theme
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +129,7 @@ class _BetterPlayerState extends State<BetterPlayer>
       _navigatorState.maybePop();
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
           overlays: _betterPlayerConfiguration.systemOverlaysAfterFullScreen);
+
       SystemChrome.setPreferredOrientations(
           _betterPlayerConfiguration.deviceOrientationsAfterFullScreen);
     }
@@ -217,6 +241,9 @@ class _BetterPlayerState extends State<BetterPlayer>
       pageBuilder: _fullScreenRoutePageBuilder,
     );
 
+    // Store the current system UI overlay style based on theme
+    _originalSystemUiOverlayStyle = _getSystemUiOverlayStyleFromTheme(context);
+
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     if (_betterPlayerConfiguration.autoDetectFullscreenDeviceOrientation ==
@@ -257,17 +284,25 @@ class _BetterPlayerState extends State<BetterPlayer>
 
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
         overlays: _betterPlayerConfiguration.systemOverlaysAfterFullScreen);
+
     await SystemChrome.setPreferredOrientations(
         _betterPlayerConfiguration.deviceOrientationsAfterFullScreen);
   }
 
   Widget _buildPlayer() {
-    return VisibilityDetector(
-      key: Key("${widget.controller.hashCode}_key"),
-      onVisibilityChanged: (VisibilityInfo info) =>
-          widget.controller.onPlayerVisibilityChanged(info.visibleFraction),
-      child: BetterPlayerWithControls(
-        controller: widget.controller,
+    // Determine the appropriate system UI overlay style
+    final systemUiOverlayStyle = _originalSystemUiOverlayStyle ??
+        _getSystemUiOverlayStyleFromTheme(context);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemUiOverlayStyle,
+      child: VisibilityDetector(
+        key: Key("${widget.controller.hashCode}_key"),
+        onVisibilityChanged: (VisibilityInfo info) =>
+            widget.controller.onPlayerVisibilityChanged(info.visibleFraction),
+        child: BetterPlayerWithControls(
+          controller: widget.controller,
+        ),
       ),
     );
   }
